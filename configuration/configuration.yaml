@@ -1,0 +1,3 @@
+github_client_settings:
+  base_url: "https://api.github.com/advisories"
+  personal_access_token: "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"
