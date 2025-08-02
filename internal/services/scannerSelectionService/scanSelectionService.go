@@ -22,18 +22,18 @@ type ScannerSelectionService interface {
 }
 
 type ScanSelection struct {
-	sshService       scansshservice.ScanSSHService
-	fileService      scanfileservice.ScanFileService
-	repositoryReader repositoryreaderservice.RepositoryReaderFacade
+	sshService             scansshservice.ScanSSHService
+	fileService            scanfileservice.ScanFileService
+	repositoryReaderFacade repositoryreaderservice.RepositoryReaderFacade
 }
 
 func NewScanSelection(sshService scansshservice.ScanSSHService,
 	fileService scanfileservice.ScanFileService,
 	repositoryReader repositoryreaderservice.RepositoryReaderFacade) ScanSelection {
 	return ScanSelection{
-		sshService:       sshService,
-		fileService:      fileService,
-		repositoryReader: repositoryReader,
+		sshService:             sshService,
+		fileService:            fileService,
+		repositoryReaderFacade: repositoryReader,
 	}
 }
 
@@ -105,7 +105,7 @@ func (s *ScanSelection) SelectFromAllProjects() (*string, error) {
 		return nil, err
 	}
 
-	projects, err := s.repositoryReader.GetRepos(*userSettings)
+	projects, err := s.repositoryReaderFacade.GetRepos(*userSettings)
 	if err != nil {
 		return nil, fmt.Errorf("error getting current projects, %v", err)
 	}

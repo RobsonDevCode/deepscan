@@ -14,8 +14,9 @@ type Config struct {
 }
 
 type GethubClinetSettings struct {
-	BaseUrl string `yaml:"base_url"`
-	PAT     string `yaml:"personal_access_token"`
+	BaseUrl  string `yaml:"base_url"`
+	PAT      string `yaml:"personal_access_token"`
+	ClientId string `yaml:"client_id"`
 }
 
 func Load() (*Config, error) {

@@ -1,6 +1,7 @@
 package clients
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -17,6 +18,7 @@ import (
 
 type GithubClientService interface {
 	GetPackagesInfo(ecosystem string, packageAndVersions map[string]string, ctx context.Context) ([]models.ScannedPackage, error)
+	GetDeviceCode(ctx context.Context) (models.DeviceResposnse, error)
 }
 
 type GithubClient struct {
@@ -25,6 +27,7 @@ type GithubClient struct {
 	baseUrl             *url.URL
 	cache               *cache.Cache
 	personalAccessToken *string
+	clientId            *string
 }
 
 func NewGithubClient(config *configuration.Config, cache *cache.Cache) (*GithubClient, error) {
@@ -62,6 +65,7 @@ func NewGithubClient(config *configuration.Config, cache *cache.Cache) (*GithubC
 		baseUrl:             baseUrl,
 		cache:               cache,
 		personalAccessToken: &config.GithubClientSettings.PAT,
+		clientId:            &config.GithubClientSettings.ClientId,
 	}, nil
 }
 
@@ -98,9 +102,6 @@ func (c *GithubClient) GetPackagesInfo(ecosystem string, packageAndVersions map[
 		if err := json.NewDecoder(response.Body).Decode(&results); err != nil {
 			return nil, handleGithubClientError(request.Response)
 		}
-		for _, result := range results {
-			fmt.Printf("results back from github: %v", result.Name)
-		}
 
 		return results, nil
 	})
@@ -124,8 +125,58 @@ func (c *GithubClient) GetPackagesInfo(ecosystem string, packageAndVersions map[
 	return results, nil
 }
 
+func (c *GithubClient) GetDeviceCode(ctx context.Context) (models.DeviceResposnse, error) {
+	deviceCodeRequest := models.DeviceCodeRequest{
+		ClientId: *c.clientId,
+		Scope:    "repo",
+	}
+
+	payload, err := json.Marshal(deviceCodeRequest)
+	if err != nil {
+		return models.DeviceResposnse{}, fmt.Errorf("error marsheling device code request %w", err)
+	}
+
+	cbResult, err := c.cb.Execute(func() (interface{}, error) {
+		request, err := http.NewRequestWithContext(ctx, http.MethodPost, "login/device/code",
+			bytes.NewBuffer(payload))
+		if err != nil {
+			return models.DeviceResposnse{}, fmt.Errorf("error creating http request for device code, %w", err)
+		}
+
+		request.Header.Set("Content-Type", "application/json")
+		request.Header.Set("Acceps", "application/json")
+
+		response, err := c.client.Do(request)
+		if err != nil {
+			return models.DeviceResposnse{}, fmt.Errorf("error sending device code request, %w", err)
+		}
+		defer response.Body.Close()
+
+		if response.StatusCode != 200 {
+			return nil, handleGithubClientError(response)
+		}
+
+		var result models.DeviceResposnse
+		if err := json.NewDecoder(response.Body).Decode(&result); err != nil {
+			return nil, handleGithubClientError(response.Request.Response)
+		}
+
+		return result, nil
+	})
+	if err != nil {
+		return models.DeviceResposnse{}, err
+	}
+
+	result, ok := cbResult.(models.DeviceResposnse)
+	if !ok {
+		return models.DeviceResposnse{}, fmt.Errorf("unexpected response type when converting response")
+	}
+
+	return result, nil
+}
+
 func (c *GithubClient) buildPackagesQuery(ecosystem string, packages map[string]string) string {
-	baseUrl := fmt.Sprintf("%s?ecosystem=%s", c.baseUrl, ecosystem)
+	baseUrl := fmt.Sprintf("advisories%s?ecosystem=%s", c.baseUrl, ecosystem)
 	var urlBuilder strings.Builder
 	urlBuilder.WriteString(baseUrl)
 
