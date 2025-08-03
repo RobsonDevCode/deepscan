@@ -8,6 +8,7 @@ import (
 	client "github.com/RobsonDevCode/deepscan/internal/clients"
 	"github.com/RobsonDevCode/deepscan/internal/configuration"
 	scanner "github.com/RobsonDevCode/deepscan/internal/scanner"
+	githubrepositoryservice "github.com/RobsonDevCode/deepscan/internal/services/githubRepositoryService"
 	packagereaderservice "github.com/RobsonDevCode/deepscan/internal/services/packageReaderService"
 	repositoryreaderservice "github.com/RobsonDevCode/deepscan/internal/services/repositoryReaderService"
 	scanfileservice "github.com/RobsonDevCode/deepscan/internal/services/scanFileService"
@@ -34,7 +35,8 @@ func main() {
 
 	packageReader := packagereaderservice.NewPackageReader()
 	scanner := scanner.NewScanner(githubClient, packageReader)
-	repositoryReader := repositoryreaderservice.NewRepositoryReaderService(azureCommandExcecutor)
+	repositoryService := githubrepositoryservice.NewGithubRepositoryRetrivalService(githubClient)
+	repositoryReader := repositoryreaderservice.NewRepositoryReaderService(azureCommandExcecutor, &repositoryService)
 	sshService := scansshservice.NewSshProcessor(scanner, &repositoryReader)
 	fileService := scanfileservice.NewFileScannerService(scanner, packageReader)
 	scanSelection := scannerselectionservice.NewScanSelection(sshService, fileService, &repositoryReader)

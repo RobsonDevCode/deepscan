@@ -56,7 +56,7 @@ func (s *SShProcessor) CloneAndScanAll(ctx context.Context) (models.ScanAllRespo
 		return models.ScanAllResponse{}, err
 	}
 
-	repos, err := s.repositoryReaderFacade.GetRepos(*userSettings)
+	repos, err := s.repositoryReaderFacade.GetRepos(*userSettings, ctx)
 	if err != nil {
 		return models.ScanAllResponse{}, err
 	}

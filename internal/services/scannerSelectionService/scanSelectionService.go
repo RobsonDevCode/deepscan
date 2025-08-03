@@ -62,7 +62,7 @@ func (s *ScanSelection) Scan(cmd *cobra.Command, ctx context.Context) ([]models.
 
 		scannedProjects = project
 	} else {
-		selectedSshUrl, err := s.SelectFromAllProjects()
+		selectedSshUrl, err := s.SelectFromAllProjects(ctx)
 		if err != nil {
 			return nil, err
 		}
@@ -97,7 +97,7 @@ func (s *ScanSelection) ScanAll(ctx context.Context) ([]models.ScannedPackage, e
 	return scannedPackages, nil
 }
 
-func (s *ScanSelection) SelectFromAllProjects() (*string, error) {
+func (s *ScanSelection) SelectFromAllProjects(ctx context.Context) (*string, error) {
 	fmt.Print("Loading projects...")
 
 	userSettings, err := setupservice.GetUserSettings()
@@ -105,7 +105,7 @@ func (s *ScanSelection) SelectFromAllProjects() (*string, error) {
 		return nil, err
 	}
 
-	projects, err := s.repositoryReaderFacade.GetRepos(*userSettings)
+	projects, err := s.repositoryReaderFacade.GetRepos(*userSettings, ctx)
 	if err != nil {
 		return nil, fmt.Errorf("error getting current projects, %v", err)
 	}
