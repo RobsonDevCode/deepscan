@@ -1,7 +1,6 @@
 package clients
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -12,14 +11,13 @@ import (
 
 	cache "github.com/RobsonDevCode/deepscan/internal/caching"
 	"github.com/RobsonDevCode/deepscan/internal/clients/models"
+	githubreposmodels "github.com/RobsonDevCode/deepscan/internal/clients/models/repos"
 	"github.com/RobsonDevCode/deepscan/internal/configuration"
 	"github.com/sony/gobreaker"
 )
 
 type GithubClientService interface {
 	GetPackagesInfo(ecosystem string, packageAndVersions map[string]string, ctx context.Context) ([]models.ScannedPackage, error)
-	GetDeviceCode(ctx context.Context) (models.DeviceResposnse, error)
-	GetAccessToken(deviceCode models.DeviceResposnse, ctx context.Context) (models.GithubAccessToken, error)
 }
 
 type GithubClient struct {
@@ -126,148 +124,48 @@ func (c *GithubClient) GetPackagesInfo(ecosystem string, packageAndVersions map[
 	return results, nil
 }
 
-func (c *GithubClient) GetDeviceCode(ctx context.Context) (models.DeviceResposnse, error) {
-	deviceCodeRequest := models.DeviceCodeRequest{
-		ClientId: *c.clientId,
-		Scope:    "repo",
-	}
+func (c *GithubClient) GetRepositories(accessToken string, ctx context.Context) (githubreposmodels.GithubRepositoryResult, error) {
+	url := fmt.Sprintf("%suser/repos", c.baseUrl)
 
-	payload, err := json.Marshal(deviceCodeRequest)
-	if err != nil {
-		return models.DeviceResposnse{}, fmt.Errorf("error marsheling device code request %w", err)
-	}
-
-	cbResult, err := c.cb.Execute(func() (interface{}, error) {
-		request, err := http.NewRequestWithContext(ctx, http.MethodPost, "login/device/code",
-			bytes.NewBuffer(payload))
+	cbResult, cbErr := c.cb.Execute(func() (interface{}, error) {
+		request, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 		if err != nil {
-			return models.DeviceResposnse{}, fmt.Errorf("error creating http request for device code, %w", err)
+			return nil, fmt.Errorf("error creating http request %s", err)
 		}
 
-		request.Header.Set("Content-Type", "application/json")
-		request.Header.Set("Acceps", "application/json")
+		request.Header.Set("Authorization", "Bearer "+url)
 
 		response, err := c.client.Do(request)
 		if err != nil {
-			return models.DeviceResposnse{}, fmt.Errorf("error sending device code request, %w", err)
+			return nil, fmt.Errorf("client respoded with status %d", response.StatusCode)
 		}
 		defer response.Body.Close()
 
 		if response.StatusCode != 200 {
-			return nil, handleGithubClientError(response)
+			var errorMessage githubreposmodels.ErrorResponse
+			if err := json.NewDecoder(response.Body).Decode(&errorMessage); err != nil {
+				return nil, fmt.Errorf("error client responded with %d and failed to read error message", response.StatusCode)
+			}
+			return nil, fmt.Errorf("error github client responded with %d message: %s", response.StatusCode)
 		}
 
-		var result models.DeviceResposnse
-		if err := json.NewDecoder(response.Body).Decode(&result); err != nil {
-			return nil, handleGithubClientError(response.Request.Response)
-		}
-
-		return result, nil
+		//TODO finish this
+		return nil, nil
 	})
-	if err != nil {
-		return models.DeviceResposnse{}, err
+	if cbErr != nil {
+		return githubreposmodels.GithubRepositoryResult{}, cbErr
 	}
 
-	result, ok := cbResult.(models.DeviceResposnse)
+	result, ok := cbResult.(githubreposmodels.GithubRepositoryResult)
 	if !ok {
-		return models.DeviceResposnse{}, fmt.Errorf("unexpected response type when converting response")
+		return githubreposmodels.GithubRepositoryResult{}, fmt.Errorf("unexpected response type when converting response")
 	}
 
-	return result, nil
-}
-
-func (c *GithubClient) GetAccessToken(deviceResp models.DeviceResposnse, ctx context.Context) (models.GithubAccessToken, error) {
-	accessTokenRequest := models.AccessTokenRequest{
-		ClientId:   *c.clientId,
-		GrantType:  "urn:ietf:params:oauth:grant-type:device_code",
-		DeviceCode: deviceResp.DeviceCode,
-	}
-
-	payload, err := json.Marshal(accessTokenRequest)
-	if err != nil {
-		return models.GithubAccessToken{}, fmt.Errorf("error marsheling device code request %w", err)
-	}
-
-	duration := time.Now().Add(time.Duration(deviceResp.ExpriesIn) * time.Second)
-
-	response, err := c.executeAccessTokenRequest(payload, duration, ctx)
-	if err != nil {
-		return models.GithubAccessToken{}, fmt.Errorf("error executing access token request: %w", err)
-	}
-
-	if response.AccessToken == nil {
-		result, err := c.handleAuthResponse(response, payload, duration, ctx)
-		if err != nil {
-			return models.GithubAccessToken{}, fmt.Errorf("error handling response: %w", err)
-		}
-
-		response.AccessToken = result.AccessToken
-	}
-
-	return *response.AccessToken, nil
-}
-
-func (c *GithubClient) executeAccessTokenRequest(payload []byte, authTimeout time.Time, ctx context.Context) (models.GithubAuthenticationResult, error) {
-
-	fmt.Print("\nAuthenticating user....")
-	if time.Now().After(authTimeout) {
-		return models.GithubAuthenticationResult{
-			AccessToken: nil,
-			AuthError: &models.AuthenticationError{
-				Error:            "expired_token",
-				ErrorDescription: "auth window expired ",
-			},
-		}, nil
-	}
-
-	request, err := http.NewRequestWithContext(ctx, http.MethodPost, "login/oauth/access_token",
-		bytes.NewBuffer(payload))
-	if err != nil {
-		return models.GithubAuthenticationResult{}, fmt.Errorf("error getting access token, failed to create http request: %w", err)
-	}
-
-	request.Header.Set("Content-Type", "application/json")
-	request.Header.Set("Acceps", "application/json")
-
-	response, err := c.client.Do(request)
-	if err != nil {
-		return models.GithubAuthenticationResult{}, fmt.Errorf("error sending access token request, %w", err)
-	}
-	defer response.Body.Close()
-
-	if response.StatusCode != 200 {
-		authError, err := handleGithubAuthenticationError(response)
-		if err != nil {
-			return models.GithubAuthenticationResult{}, err
-		}
-
-		return models.GithubAuthenticationResult{}, fmt.Errorf("error client responded with status code: %d message: %s", response.StatusCode, authError.ErrorDescription)
-	}
-
-	var accessToken *models.GithubAccessToken
-	if err := json.NewDecoder(response.Body).Decode(&accessToken); err != nil {
-		var authError *models.AuthenticationError
-
-		if err := json.NewDecoder(response.Body).Decode(&authError); err != nil {
-			return models.GithubAuthenticationResult{}, fmt.Errorf("error unable to read token or auth error")
-		}
-
-		return models.GithubAuthenticationResult{
-			AccessToken: nil,
-			AuthError:   authError,
-		}, nil
-	}
-
-	//happy path
-	result := models.GithubAuthenticationResult{
-		AccessToken: accessToken,
-		AuthError:   nil,
-	}
 	return result, nil
 }
 
 func (c *GithubClient) buildPackagesQuery(ecosystem string, packages map[string]string) string {
-	baseUrl := fmt.Sprintf("advisories%s?ecosystem=%s", c.baseUrl, ecosystem)
+	baseUrl := fmt.Sprintf("%sadvisories?ecosystem=%s", c.baseUrl, ecosystem)
 	var urlBuilder strings.Builder
 	urlBuilder.WriteString(baseUrl)
 
@@ -296,30 +194,6 @@ func (c *GithubClient) buildPackagesQuery(ecosystem string, packages map[string]
 	return urlBuilder.String()
 }
 
-func (c *GithubClient) handleAuthResponse(result models.GithubAuthenticationResult, payload []byte, duration time.Time, ctx context.Context) (models.GithubAuthenticationResult, error) {
-
-	switch result.AuthError.Error {
-	case "authorization_pending":
-		fmt.Print("\nRetrying auth...")
-		return c.executeAccessTokenRequest(payload, duration, ctx)
-	case "slow_down":
-		time.Sleep(1 * time.Second)
-		return c.executeAccessTokenRequest(payload, duration, ctx)
-	case "expired_token":
-		return models.GithubAuthenticationResult{}, fmt.Errorf("device code expired")
-	case "access_denied":
-		return models.GithubAuthenticationResult{}, fmt.Errorf("user denied access")
-	case "incorrect_client_credentials":
-		return models.GithubAuthenticationResult{}, fmt.Errorf("invalid client_id")
-	case "incorrect_device_code":
-		return models.GithubAuthenticationResult{}, fmt.Errorf("invalid device_code")
-	case "device_flow_disabled":
-		return models.GithubAuthenticationResult{}, fmt.Errorf("device flow not enabled for this app")
-	default:
-		return models.GithubAuthenticationResult{}, fmt.Errorf("unknown error: %s", result.AuthError.Error)
-	}
-}
-
 func handleGithubClientError(response *http.Response) error {
 	var clientError models.Error
 	if err := json.NewDecoder(response.Body).Decode(&clientError); err != nil {
@@ -327,13 +201,4 @@ func handleGithubClientError(response *http.Response) error {
 	}
 
 	return fmt.Errorf("client response error status: %d, %v", response.StatusCode, clientError)
-}
-
-func handleGithubAuthenticationError(response *http.Response) (models.AuthenticationError, error) {
-	var clientError models.AuthenticationError
-	if err := json.NewDecoder(response.Body).Decode(&clientError); err != nil {
-		return models.AuthenticationError{}, fmt.Errorf("failed to read authetication error: %w", err)
-	}
-
-	return clientError, nil
 }

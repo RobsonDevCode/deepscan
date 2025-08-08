@@ -31,6 +31,7 @@ func (g *GitHubRepositoryRetrival) GetRepos(profile string, ctx context.Context)
 		return nil, err
 	}
 
-	fmt.Printf("Token: %s", result.AccessToken)
+	fmt.Printf("Token: %s", result.Token)
+
 	return nil, nil
 }

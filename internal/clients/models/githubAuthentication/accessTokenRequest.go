@@ -1,4 +1,4 @@
-package models
+package authenticaionmodels
 
 type AccessTokenRequest struct {
 	ClientId   string `json:"client_id"`

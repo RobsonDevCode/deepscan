@@ -4,41 +4,41 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/RobsonDevCode/deepscan/internal/clients"
-	"github.com/RobsonDevCode/deepscan/internal/clients/models"
+	githubauthenticationclient "github.com/RobsonDevCode/deepscan/internal/clients/githubAuthenticationClient"
+	authenticaionmodels "github.com/RobsonDevCode/deepscan/internal/clients/models/githubAuthentication"
 )
 
 type GithubAuthenticator struct {
-	githubClient clients.GithubClientService
+	githubAuthenticationClient githubauthenticationclient.GithubAuthenticationClientService
 }
 
 type GithubAuthenticatorService interface {
-	AuthenticateUser(ctx context.Context) (models.GithubAccessToken, error)
+	AuthenticateUser(ctx context.Context) (authenticaionmodels.GithubAccessToken, error)
 }
 
-func NewGithubAuthenticator(githubClient clients.GithubClientService) GithubAuthenticator {
+func NewGithubAuthenticator(githubauthenticationClient githubauthenticationclient.GithubAuthenticationClientService) GithubAuthenticator {
 	return GithubAuthenticator{
-		githubClient: githubClient,
+		githubAuthenticationClient: githubauthenticationClient,
 	}
 }
 
-func (g *GithubAuthenticator) AuthenticateUser(ctx context.Context) (models.GithubAccessToken, error) {
-	deviceCode, err := g.githubClient.GetDeviceCode(ctx)
+func (g *GithubAuthenticator) AuthenticateUser(ctx context.Context) (authenticaionmodels.GithubAccessToken, error) {
+	deviceCode, err := g.githubAuthenticationClient.GetDeviceCode(ctx)
 	if err != nil {
-		return models.GithubAccessToken{}, fmt.Errorf("error authenticating user: %w", err)
+		return authenticaionmodels.GithubAccessToken{}, fmt.Errorf("error authenticating user: %w", err)
 	}
 
 	displayUserInstructions(deviceCode)
-
-	result, err := g.githubClient.GetAccessToken(deviceCode, ctx)
+	fmt.Print(deviceCode)
+	result, err := g.githubAuthenticationClient.GetAccessToken(deviceCode, ctx)
 	if err != nil {
-		return models.GithubAccessToken{}, err
+		return authenticaionmodels.GithubAccessToken{}, err
 	}
 
 	return result, nil
 }
 
-func displayUserInstructions(deviceResp models.DeviceResposnse) {
+func displayUserInstructions(deviceResp authenticaionmodels.DeviceResposnse) {
 	fmt.Printf("\n╭─────────────────────────────────────────╮\n")
 	fmt.Printf("│          GitHub Authentication          │\n")
 	fmt.Printf("╰─────────────────────────────────────────╯\n\n")

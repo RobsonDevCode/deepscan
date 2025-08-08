@@ -1,4 +1,4 @@
-package models
+package authenticaionmodels
 
 type GithubAuthenticationResult struct {
 	AccessToken *GithubAccessToken

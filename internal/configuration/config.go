@@ -10,12 +10,18 @@ import (
 const FilePath = "configuration/configuration.yaml"
 
 type Config struct {
-	GithubClientSettings GethubClinetSettings `yaml:"github_client_settings"`
+	GithubClientSettings               GithubClientSettings               `yaml:"github_client_settings"`
+	GithubAuthenticationClientSettings GithubAuthenticationClientSettings `yaml:"github_auth_client_settings"`
 }
 
-type GethubClinetSettings struct {
+type GithubClientSettings struct {
 	BaseUrl  string `yaml:"base_url"`
 	PAT      string `yaml:"personal_access_token"`
+	ClientId string `yaml:"client_id"`
+}
+
+type GithubAuthenticationClientSettings struct {
+	BaseUrl  string `yaml:"base_url"`
 	ClientId string `yaml:"client_id"`
 }
 
