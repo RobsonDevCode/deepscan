@@ -39,7 +39,7 @@ func main() {
 	scanner := scanner.NewScanner(githubClient, packageReader)
 
 	githubAuthClient, err := githubauthenticationclient.NewGithubAuthenticationClient(config, &cacheIntance)
-	githubAuthenticationService := gitubauthenticationservice.NewGithubAuthenticator(githubAuthClient)
+	githubAuthenticationService := gitubauthenticationservice.NewGithubAuthenticator(githubAuthClient, &cacheIntance)
 	repositoryService := githubrepositoryservice.NewGithubRepositoryRetrivalService(githubClient, &githubAuthenticationService)
 	repositoryReader := repositoryreaderservice.NewRepositoryReaderService(azureCommandExcecutor, &repositoryService)
 	sshService := scansshservice.NewSshProcessor(scanner, &repositoryReader)

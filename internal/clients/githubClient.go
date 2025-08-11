@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"strings"
@@ -18,6 +19,7 @@ import (
 
 type GithubClientService interface {
 	GetPackagesInfo(ecosystem string, packageAndVersions map[string]string, ctx context.Context) ([]models.ScannedPackage, error)
+	GetRepositories(accessToken string, ctx context.Context) ([]githubreposmodels.GithubRepository, error)
 }
 
 type GithubClient struct {
@@ -93,13 +95,17 @@ func (c *GithubClient) GetPackagesInfo(ecosystem string, packageAndVersions map[
 		}
 		defer response.Body.Close()
 
+		body, err := io.ReadAll(response.Body)
+		if err != nil {
+			return nil, fmt.Errorf("could not read body from client request %w", err)
+		}
 		if response.StatusCode != 200 {
-			return nil, handleGithubClientError(response)
+			return nil, handleGithubClientError(body, response.StatusCode)
 		}
 
 		var results []models.ScannedPackage
-		if err := json.NewDecoder(response.Body).Decode(&results); err != nil {
-			return nil, handleGithubClientError(request.Response)
+		if err := json.Unmarshal(body, &results); err != nil {
+			return nil, handleGithubClientError(body, response.StatusCode)
 		}
 
 		return results, nil
@@ -124,16 +130,17 @@ func (c *GithubClient) GetPackagesInfo(ecosystem string, packageAndVersions map[
 	return results, nil
 }
 
-func (c *GithubClient) GetRepositories(accessToken string, ctx context.Context) (githubreposmodels.GithubRepositoryResult, error) {
+func (c *GithubClient) GetRepositories(accessToken string, ctx context.Context) ([]githubreposmodels.GithubRepository, error) {
 	url := fmt.Sprintf("%suser/repos", c.baseUrl)
 
+	fmt.Printf("\n Url: %s", url)
 	cbResult, cbErr := c.cb.Execute(func() (interface{}, error) {
 		request, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 		if err != nil {
 			return nil, fmt.Errorf("error creating http request %s", err)
 		}
 
-		request.Header.Set("Authorization", "Bearer "+url)
+		request.Header.Set("Authorization", "Bearer "+accessToken)
 
 		response, err := c.client.Do(request)
 		if err != nil {
@@ -141,24 +148,30 @@ func (c *GithubClient) GetRepositories(accessToken string, ctx context.Context) 
 		}
 		defer response.Body.Close()
 
-		if response.StatusCode != 200 {
-			var errorMessage githubreposmodels.ErrorResponse
-			if err := json.NewDecoder(response.Body).Decode(&errorMessage); err != nil {
-				return nil, fmt.Errorf("error client responded with %d and failed to read error message", response.StatusCode)
-			}
-			return nil, fmt.Errorf("error github client responded with %d message: %s", response.StatusCode)
+		body, err := io.ReadAll(response.Body)
+		if err != nil {
+			return nil, fmt.Errorf("error reading body from client: %w", err)
 		}
 
-		//TODO finish this
-		return nil, nil
+		if response.StatusCode != 200 {
+			return nil, handleGithubClientError(body, response.StatusCode)
+		}
+
+		var result []githubreposmodels.GithubRepository
+		if err := json.Unmarshal(body, &result); err != nil {
+			return nil, handleGithubClientError(body, response.StatusCode)
+		}
+
+		return result, nil
 	})
+
 	if cbErr != nil {
-		return githubreposmodels.GithubRepositoryResult{}, cbErr
+		return nil, cbErr
 	}
 
-	result, ok := cbResult.(githubreposmodels.GithubRepositoryResult)
+	result, ok := cbResult.([]githubreposmodels.GithubRepository)
 	if !ok {
-		return githubreposmodels.GithubRepositoryResult{}, fmt.Errorf("unexpected response type when converting response")
+		return nil, fmt.Errorf("unexpected response type when converting response")
 	}
 
 	return result, nil
@@ -194,11 +207,11 @@ func (c *GithubClient) buildPackagesQuery(ecosystem string, packages map[string]
 	return urlBuilder.String()
 }
 
-func handleGithubClientError(response *http.Response) error {
+func handleGithubClientError(body []byte, statusCode int) error {
 	var clientError models.Error
-	if err := json.NewDecoder(response.Body).Decode(&clientError); err != nil {
-		return fmt.Errorf("failed to read client error status code %d: %w", response.StatusCode, err)
+	if err := json.Unmarshal(body, &clientError); err != nil {
+		return fmt.Errorf("failed to read client error status code %d: %w", statusCode, err)
 	}
 
-	return fmt.Errorf("client response error status: %d, %v", response.StatusCode, clientError)
+	return fmt.Errorf("client response error status: %d, %v", statusCode, clientError)
 }

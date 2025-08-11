@@ -17,8 +17,6 @@ type AzureCommandExcecutor struct {
 }
 
 const key = "repos"
-const uiProject = "ui"
-const pocProject = "poc"
 
 type AzureCommandService interface {
 	GetRepos(orgUrl string, project string) ([]cmdmodels.Repository, error)
@@ -31,7 +29,10 @@ func NewAzureCommandExcecutor(cache *cache.Cache) *AzureCommandExcecutor {
 }
 
 func (a *AzureCommandExcecutor) GetRepos(orgUrl string, project string) ([]cmdmodels.Repository, error) {
-	response, err := a.cache.GetOrCreate(key, time.Minute*10, func() (interface{}, error) {
+	response, err := a.cache.GetOrCreate(key, func(entry *cache.CacheEntry) (interface{}, error) {
+
+		entry.Expiration = time.Now().Add(time.Minute * 10)
+
 		repoCommand := exec.Command("az", "repos", "list", "--org", orgUrl, "-p", project)
 		repoCommand.Env = os.Environ()
 

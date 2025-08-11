@@ -131,7 +131,6 @@ func (c *GithubAuthenticationClient) GetAccessToken(deviceResp authenticaionmode
 		GrantType:  "urn:ietf:params:oauth:grant-type:device_code",
 		DeviceCode: deviceResp.DeviceCode,
 	}
-	fmt.Printf("\nDevice Code: %s", deviceResp.DeviceCode)
 
 	payload, err := json.Marshal(accessTokenRequest)
 	if err != nil {
@@ -150,7 +149,6 @@ func (c *GithubAuthenticationClient) GetAccessToken(deviceResp authenticaionmode
 
 func (c *GithubAuthenticationClient) executeAccessTokenRequest(payload []byte, authTimeOut time.Time, ctx context.Context) (authenticaionmodels.GithubAccessToken, error) {
 	status := "authorization_pending"
-	fmt.Printf("auth timeout: %s", authTimeOut)
 
 	for time.Now().Before(authTimeOut) && status != "completed" {
 		request, err := http.NewRequestWithContext(ctx, http.MethodPost, fmt.Sprintf("%slogin/oauth/access_token", c.baseUrl),
@@ -178,9 +176,6 @@ func (c *GithubAuthenticationClient) executeAccessTokenRequest(payload []byte, a
 		}
 		defer response.Body.Close()
 
-		bodyString := string(bodyBytes)
-		fmt.Printf("Json Body: %s", bodyString)
-
 		var accessToken authenticaionmodels.GithubAccessToken
 		var authError authenticaionmodels.AuthenticationError
 
@@ -201,7 +196,7 @@ func (c *GithubAuthenticationClient) executeAccessTokenRequest(payload []byte, a
 		}
 
 		fmt.Printf("\n Status: %s", authError.Error)
-		if authError.Error == "slow_down" {
+		if authError.Error == "slow_down" || authError.Error == "authorization_pending" {
 			time.Sleep(time.Duration(authError.Interval) * time.Second)
 		}
 

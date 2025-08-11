@@ -3,36 +3,58 @@ package gitubauthenticationservice
 import (
 	"context"
 	"fmt"
+	"time"
 
+	cache "github.com/RobsonDevCode/deepscan/internal/caching"
 	githubauthenticationclient "github.com/RobsonDevCode/deepscan/internal/clients/githubAuthenticationClient"
 	authenticaionmodels "github.com/RobsonDevCode/deepscan/internal/clients/models/githubAuthentication"
 )
 
 type GithubAuthenticator struct {
 	githubAuthenticationClient githubauthenticationclient.GithubAuthenticationClientService
+	cache                      *cache.Cache
 }
 
 type GithubAuthenticatorService interface {
 	AuthenticateUser(ctx context.Context) (authenticaionmodels.GithubAccessToken, error)
 }
 
-func NewGithubAuthenticator(githubauthenticationClient githubauthenticationclient.GithubAuthenticationClientService) GithubAuthenticator {
+const authenticaionCacheKey = "auth-key"
+
+func NewGithubAuthenticator(githubauthenticationClient githubauthenticationclient.GithubAuthenticationClientService,
+	cache *cache.Cache) GithubAuthenticator {
 	return GithubAuthenticator{
 		githubAuthenticationClient: githubauthenticationClient,
+		cache:                      cache,
 	}
 }
 
 func (g *GithubAuthenticator) AuthenticateUser(ctx context.Context) (authenticaionmodels.GithubAccessToken, error) {
-	deviceCode, err := g.githubAuthenticationClient.GetDeviceCode(ctx)
+
+	response, err := g.cache.GetOrCreate(authenticaionCacheKey, func(entry *cache.CacheEntry) (interface{}, error) {
+		deviceCode, err := g.githubAuthenticationClient.GetDeviceCode(ctx)
+		if err != nil {
+			return authenticaionmodels.GithubAccessToken{}, err
+		}
+
+		displayUserInstructions(deviceCode)
+		fmt.Print(deviceCode)
+		result, err := g.githubAuthenticationClient.GetAccessToken(deviceCode, ctx)
+		if err != nil {
+			return authenticaionmodels.GithubAccessToken{}, err
+		}
+
+		entry.Expiration = time.Now().Add(time.Duration(deviceCode.ExpriesIn) * time.Second)
+
+		return result, nil
+	})
 	if err != nil {
 		return authenticaionmodels.GithubAccessToken{}, fmt.Errorf("error authenticating user: %w", err)
 	}
 
-	displayUserInstructions(deviceCode)
-	fmt.Print(deviceCode)
-	result, err := g.githubAuthenticationClient.GetAccessToken(deviceCode, ctx)
-	if err != nil {
-		return authenticaionmodels.GithubAccessToken{}, err
+	result, ok := response.(authenticaionmodels.GithubAccessToken)
+	if !ok {
+		return authenticaionmodels.GithubAccessToken{}, fmt.Errorf("error authenticating user, unable to read respone type: %w", err)
 	}
 
 	return result, nil

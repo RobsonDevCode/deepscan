@@ -14,15 +14,12 @@ type CacheEntry struct {
 }
 
 type Cache struct {
-	data       sync.Map
-	group      singleflight.Group
-	itemCount  int32
-	stopChan   chan struct{}
-	isCleaning bool
-	cleanMu    sync.Mutex
+	data      sync.Map
+	group     singleflight.Group
+	itemCount int32
 }
 
-func (c *Cache) GetOrCreate(key string, expiration time.Duration, createFn func() (interface{}, error)) (interface{}, error) {
+func (c *Cache) GetOrCreate(key string, createFn func(entry *CacheEntry) (interface{}, error)) (interface{}, error) {
 	if value, ok := c.data.Load(key); ok {
 		cacheEntry := value.(CacheEntry)
 		if cacheEntry.Expiration.After(time.Now()) {
@@ -40,17 +37,17 @@ func (c *Cache) GetOrCreate(key string, expiration time.Duration, createFn func(
 			}
 		}
 
-		v, err := createFn()
+		entry := &CacheEntry{
+			Expiration: time.Now().Add(time.Hour),
+		}
+
+		v, err := createFn(entry)
 		if err != nil {
 			return nil, err
 		}
 
-		entry := CacheEntry{
-			Value:      v,
-			Expiration: time.Now().Add(expiration),
-		}
-
-		c.data.Store(key, entry)
+		entry.Value = v
+		c.data.Store(key, *entry)
 		atomic.AddInt32(&c.itemCount, 1)
 		return v, nil
 	})

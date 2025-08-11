@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/RobsonDevCode/deepscan/internal/clients"
+	"github.com/RobsonDevCode/deepscan/internal/clients/mapper"
 	gitubauthenticationservice "github.com/RobsonDevCode/deepscan/internal/services/gitubAuthenticationService"
 	cmdmodels "github.com/RobsonDevCode/deepscan/internal/thirdPartyCommands/models"
 )
@@ -26,12 +27,20 @@ func NewGithubRepositoryRetrivalService(githubClient clients.GithubClientService
 }
 
 func (g *GitHubRepositoryRetrival) GetRepos(profile string, ctx context.Context) ([]cmdmodels.Repository, error) {
-	result, err := g.githubAuth.AuthenticateUser(ctx)
+	ghAccessToken, err := g.githubAuth.AuthenticateUser(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	fmt.Printf("Token: %s", result.Token)
+	ghRepos, err := g.githubClient.GetRepositories(ghAccessToken.Token, ctx)
+	if err != nil {
+		return nil, fmt.Errorf("error getting repos: %w", err)
+	}
 
-	return nil, nil
+	result := mapper.Map(ghRepos)
+	for _, message := range result {
+		fmt.Printf("\nRepo: %s SSH Url: %s", message.Name, message.SSHUrl)
+	}
+
+	return result, nil
 }
