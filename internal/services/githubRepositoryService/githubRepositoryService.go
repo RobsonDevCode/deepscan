@@ -38,9 +38,5 @@ func (g *GitHubRepositoryRetrival) GetRepos(profile string, ctx context.Context)
 	}
 
 	result := mapper.Map(ghRepos)
-	for _, message := range result {
-		fmt.Printf("\nRepo: %s SSH Url: %s", message.Name, message.SSHUrl)
-	}
-
 	return result, nil
 }

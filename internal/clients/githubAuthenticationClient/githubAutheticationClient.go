@@ -77,13 +77,10 @@ func (c *GithubAuthenticationClient) GetDeviceCode(ctx context.Context) (authent
 	if err != nil {
 		return authenticaionmodels.DeviceResposnse{}, fmt.Errorf("error marsheling device code request %w", err)
 	}
-	fmt.Printf("\npayload: '%s' \n", payload)
-
 	cbResult, err := c.cb.Execute(func() (interface{}, error) {
 
 		request, err := http.NewRequestWithContext(ctx, http.MethodPost, fmt.Sprintf("%slogin/device/code", c.baseUrl),
 			bytes.NewBuffer(payload))
-		fmt.Printf("URL: '%s'", request.URL)
 		if err != nil {
 			return authenticaionmodels.DeviceResposnse{}, fmt.Errorf("error creating http request for device code, %w", err)
 		}
@@ -195,7 +192,6 @@ func (c *GithubAuthenticationClient) executeAccessTokenRequest(payload []byte, a
 			}
 		}
 
-		fmt.Printf("\n Status: %s", authError.Error)
 		if authError.Error == "slow_down" || authError.Error == "authorization_pending" {
 			time.Sleep(time.Duration(authError.Interval) * time.Second)
 		}
