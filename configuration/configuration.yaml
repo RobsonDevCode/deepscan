@@ -3,4 +3,7 @@ github_client_settings:
   personal_access_token: "{FILL_IN_CONFIG}"
   client_id: "{FILL_IN_CONFIG}"
 
+github_auth_client_settings:
+ base_url: "https://github.com/"
+ client_id: "{FILL_IN_CONFIG}"
   
