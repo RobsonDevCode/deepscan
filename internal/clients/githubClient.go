@@ -87,7 +87,7 @@ func (c *GithubClient) GetPackagesInfo(ecosystem string, packageAndVersions map[
 			return nil, fmt.Errorf("failed to create http request: %w", err)
 		}
 
-		request.Header.Set("Authorization", "token "+*c.personalAccessToken)
+		request.Header.Set("Authorization", "bearer "+*c.personalAccessToken)
 
 		response, err := c.client.Do(request)
 		if err != nil {
@@ -133,7 +133,7 @@ func (c *GithubClient) GetPackagesInfo(ecosystem string, packageAndVersions map[
 func (c *GithubClient) GetRepositories(accessToken string, ctx context.Context) ([]githubreposmodels.GithubRepository, error) {
 	url := fmt.Sprintf("%suser/repos", c.baseUrl)
 
-	fmt.Printf("\n Url: %s", url)
+	fmt.Printf("\n Repo Url: %s", url)
 	cbResult, cbErr := c.cb.Execute(func() (interface{}, error) {
 		request, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 		if err != nil {
