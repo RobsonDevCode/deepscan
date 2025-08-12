@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"strings"
@@ -11,12 +12,14 @@ import (
 
 	cache "github.com/RobsonDevCode/deepscan/internal/caching"
 	"github.com/RobsonDevCode/deepscan/internal/clients/models"
+	githubreposmodels "github.com/RobsonDevCode/deepscan/internal/clients/models/repos"
 	"github.com/RobsonDevCode/deepscan/internal/configuration"
 	"github.com/sony/gobreaker"
 )
 
 type GithubClientService interface {
 	GetPackagesInfo(ecosystem string, packageAndVersions map[string]string, ctx context.Context) ([]models.ScannedPackage, error)
+	GetRepositories(accessToken string, ctx context.Context) ([]githubreposmodels.GithubRepository, error)
 }
 
 type GithubClient struct {
@@ -25,6 +28,7 @@ type GithubClient struct {
 	baseUrl             *url.URL
 	cache               *cache.Cache
 	personalAccessToken *string
+	clientId            *string
 }
 
 func NewGithubClient(config *configuration.Config, cache *cache.Cache) (*GithubClient, error) {
@@ -62,6 +66,7 @@ func NewGithubClient(config *configuration.Config, cache *cache.Cache) (*GithubC
 		baseUrl:             baseUrl,
 		cache:               cache,
 		personalAccessToken: &config.GithubClientSettings.PAT,
+		clientId:            &config.GithubClientSettings.ClientId,
 	}, nil
 }
 
@@ -90,16 +95,17 @@ func (c *GithubClient) GetPackagesInfo(ecosystem string, packageAndVersions map[
 		}
 		defer response.Body.Close()
 
+		body, err := io.ReadAll(response.Body)
+		if err != nil {
+			return nil, fmt.Errorf("could not read body from client request %w", err)
+		}
 		if response.StatusCode != 200 {
-			return nil, handleGithubClientError(response)
+			return nil, handleGithubClientError(body, response.StatusCode)
 		}
 
 		var results []models.ScannedPackage
-		if err := json.NewDecoder(response.Body).Decode(&results); err != nil {
-			return nil, handleGithubClientError(request.Response)
-		}
-		for _, result := range results {
-			fmt.Printf("results back from github: %v", result.Name)
+		if err := json.Unmarshal(body, &results); err != nil {
+			return nil, handleGithubClientError(body, response.StatusCode)
 		}
 
 		return results, nil
@@ -124,8 +130,55 @@ func (c *GithubClient) GetPackagesInfo(ecosystem string, packageAndVersions map[
 	return results, nil
 }
 
+func (c *GithubClient) GetRepositories(accessToken string, ctx context.Context) ([]githubreposmodels.GithubRepository, error) {
+	url := fmt.Sprintf("%suser/repos", c.baseUrl)
+
+	fmt.Printf("\n Url: %s", url)
+	cbResult, cbErr := c.cb.Execute(func() (interface{}, error) {
+		request, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+		if err != nil {
+			return nil, fmt.Errorf("error creating http request %s", err)
+		}
+
+		request.Header.Set("Authorization", "Bearer "+accessToken)
+
+		response, err := c.client.Do(request)
+		if err != nil {
+			return nil, fmt.Errorf("client respoded with status %d", response.StatusCode)
+		}
+		defer response.Body.Close()
+
+		body, err := io.ReadAll(response.Body)
+		if err != nil {
+			return nil, fmt.Errorf("error reading body from client: %w", err)
+		}
+
+		if response.StatusCode != 200 {
+			return nil, handleGithubClientError(body, response.StatusCode)
+		}
+
+		var result []githubreposmodels.GithubRepository
+		if err := json.Unmarshal(body, &result); err != nil {
+			return nil, handleGithubClientError(body, response.StatusCode)
+		}
+
+		return result, nil
+	})
+
+	if cbErr != nil {
+		return nil, cbErr
+	}
+
+	result, ok := cbResult.([]githubreposmodels.GithubRepository)
+	if !ok {
+		return nil, fmt.Errorf("unexpected response type when converting response")
+	}
+
+	return result, nil
+}
+
 func (c *GithubClient) buildPackagesQuery(ecosystem string, packages map[string]string) string {
-	baseUrl := fmt.Sprintf("%s?ecosystem=%s", c.baseUrl, ecosystem)
+	baseUrl := fmt.Sprintf("%sadvisories?ecosystem=%s", c.baseUrl, ecosystem)
 	var urlBuilder strings.Builder
 	urlBuilder.WriteString(baseUrl)
 
@@ -154,11 +207,11 @@ func (c *GithubClient) buildPackagesQuery(ecosystem string, packages map[string]
 	return urlBuilder.String()
 }
 
-func handleGithubClientError(response *http.Response) error {
+func handleGithubClientError(body []byte, statusCode int) error {
 	var clientError models.Error
-	if err := json.NewDecoder(response.Body).Decode(&clientError); err != nil {
-		return fmt.Errorf("failed to read client error status code %d: %w", response.StatusCode, err)
+	if err := json.Unmarshal(body, &clientError); err != nil {
+		return fmt.Errorf("failed to read client error status code %d: %w", statusCode, err)
 	}
 
-	return fmt.Errorf("client response error status: %d, %v", response.StatusCode, clientError)
+	return fmt.Errorf("client response error status: %d, %v", statusCode, clientError)
 }

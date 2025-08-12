@@ -21,14 +21,14 @@ type ScanSSHService interface {
 }
 
 type SShProcessor struct {
-	scanner          scannerService.ScannerService
-	repositoryReader repositoryreaderservice.RepositoryReaderFacade
+	scanner                scannerService.ScannerService
+	repositoryReaderFacade repositoryreaderservice.RepositoryReaderFacade
 }
 
 func NewSshProcessor(scanner scannerService.ScannerService, repositoryReader repositoryreaderservice.RepositoryReaderFacade) *SShProcessor {
 	return &SShProcessor{
-		scanner:          scanner,
-		repositoryReader: repositoryReader,
+		scanner:                scanner,
+		repositoryReaderFacade: repositoryReader,
 	}
 }
 
@@ -56,7 +56,7 @@ func (s *SShProcessor) CloneAndScanAll(ctx context.Context) (models.ScanAllRespo
 		return models.ScanAllResponse{}, err
 	}
 
-	repos, err := s.repositoryReader.GetRepos(*userSettings)
+	repos, err := s.repositoryReaderFacade.GetRepos(*userSettings, ctx)
 	if err != nil {
 		return models.ScanAllResponse{}, err
 	}

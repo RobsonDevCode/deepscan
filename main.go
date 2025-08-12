@@ -6,8 +6,11 @@ import (
 	"github.com/RobsonDevCode/deepscan/cmd"
 	cache "github.com/RobsonDevCode/deepscan/internal/caching"
 	client "github.com/RobsonDevCode/deepscan/internal/clients"
+	githubauthenticationclient "github.com/RobsonDevCode/deepscan/internal/clients/githubAuthenticationClient"
 	"github.com/RobsonDevCode/deepscan/internal/configuration"
 	scanner "github.com/RobsonDevCode/deepscan/internal/scanner"
+	githubrepositoryservice "github.com/RobsonDevCode/deepscan/internal/services/githubRepositoryService"
+	gitubauthenticationservice "github.com/RobsonDevCode/deepscan/internal/services/gitubAuthenticationService"
 	packagereaderservice "github.com/RobsonDevCode/deepscan/internal/services/packageReaderService"
 	repositoryreaderservice "github.com/RobsonDevCode/deepscan/internal/services/repositoryReaderService"
 	scanfileservice "github.com/RobsonDevCode/deepscan/internal/services/scanFileService"
@@ -34,7 +37,11 @@ func main() {
 
 	packageReader := packagereaderservice.NewPackageReader()
 	scanner := scanner.NewScanner(githubClient, packageReader)
-	repositoryReader := repositoryreaderservice.NewRepositoryReaderService(azureCommandExcecutor)
+
+	githubAuthClient, err := githubauthenticationclient.NewGithubAuthenticationClient(config, &cacheIntance)
+	githubAuthenticationService := gitubauthenticationservice.NewGithubAuthenticator(githubAuthClient, &cacheIntance)
+	repositoryService := githubrepositoryservice.NewGithubRepositoryRetrivalService(githubClient, &githubAuthenticationService)
+	repositoryReader := repositoryreaderservice.NewRepositoryReaderService(azureCommandExcecutor, &repositoryService)
 	sshService := scansshservice.NewSshProcessor(scanner, &repositoryReader)
 	fileService := scanfileservice.NewFileScannerService(scanner, packageReader)
 	scanSelection := scannerselectionservice.NewScanSelection(sshService, fileService, &repositoryReader)
