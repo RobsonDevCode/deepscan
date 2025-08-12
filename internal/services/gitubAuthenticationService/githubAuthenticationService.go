@@ -42,8 +42,8 @@ func (g *GithubAuthenticator) AuthenticateUser(ctx context.Context) (authenticat
 	if err != nil {
 		return authenticationmodels.GithubAccessToken{}, err
 	}
-	if accessToken != nil {
-		return *accessToken, nil
+	if accessToken.Token != "" {
+		return accessToken, nil
 	}
 
 	response, err := g.cache.GetOrCreate(authenticaionCacheKey, func(entry *cache.CacheEntry) (interface{}, error) {
@@ -58,6 +58,7 @@ func (g *GithubAuthenticator) AuthenticateUser(ctx context.Context) (authenticat
 			return authenticationmodels.GithubAccessToken{}, err
 		}
 
+		fmt.Printf("\n Response: %v", result)
 		entry.Expiration = time.Now().Add(time.Duration(deviceCode.ExpriesIn) * time.Second)
 		return result, nil
 	})
@@ -65,23 +66,19 @@ func (g *GithubAuthenticator) AuthenticateUser(ctx context.Context) (authenticat
 		return authenticationmodels.GithubAccessToken{}, fmt.Errorf("error authenticating user: %w", err)
 	}
 
-	deviceCode, ok := response.(authenticationmodels.DeviceResposnse)
+	accessToken, ok := response.(authenticationmodels.GithubAccessToken)
 	if !ok {
 		return authenticationmodels.GithubAccessToken{}, fmt.Errorf("error authenticating user, unable to read respone type: %w", err)
 	}
 
-	*accessToken, err = g.githubAuthenticationClient.GetAccessToken(deviceCode, ctx)
+	fmt.Printf("\nAccess Token: %s", accessToken.Token)
 
-	if err != nil {
-		return authenticationmodels.GithubAccessToken{}, fmt.Errorf("error getting access token: %w", err)
-	}
-
-	if err := setLocalAccessToken(*accessToken); err != nil {
+	if err := setLocalAccessToken(accessToken); err != nil {
 		fmt.Print("error saving access token locally: %w", err) //log but dont fail
-		return *accessToken, nil
+		return accessToken, nil
 	}
 
-	return *accessToken, nil
+	return accessToken, nil
 }
 
 func displayUserInstructions(deviceResp authenticationmodels.DeviceResposnse) {
@@ -92,17 +89,17 @@ func displayUserInstructions(deviceResp authenticationmodels.DeviceResposnse) {
 	fmt.Printf("2. Enter code: %s\n", deviceResp.UserCode)
 }
 
-func getLocalAccessToken() (*authenticationmodels.GithubAccessToken, error) {
+func getLocalAccessToken() (authenticationmodels.GithubAccessToken, error) {
 	userSettings, err := setupservice.GetUserSettings()
 	if err != nil {
-		return nil, fmt.Errorf("error getting user setting: %w", err)
+		return authenticationmodels.GithubAccessToken{}, fmt.Errorf("error getting user setting: %w", err)
 	}
 
 	if userSettings.AccessToken != nil {
-		return userSettings.AccessToken, nil
+		return *userSettings.AccessToken, nil
 	}
 
-	return nil, nil //no error but no access token so user hasnt authenticated before
+	return authenticationmodels.GithubAccessToken{}, nil //no error but no access token so user hasnt authenticated before
 }
 
 func setLocalAccessToken(accessToken authenticationmodels.GithubAccessToken) error {

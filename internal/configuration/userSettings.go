@@ -1,6 +1,8 @@
 package configuration
 
-import authenticaionmodels "github.com/RobsonDevCode/deepscan/internal/clients/models/githubAuthentication"
+import (
+	authenticaionmodels "github.com/RobsonDevCode/deepscan/internal/clients/models/githubAuthentication"
+)
 
 type UsersSettings struct {
 	OrganizationUrl string                                 `json:"org_url"`

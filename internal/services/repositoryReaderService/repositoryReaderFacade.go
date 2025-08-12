@@ -31,7 +31,7 @@ func NewRepositoryReaderService(azureCmds azurecommandExcecutor.AzureCommandServ
 func (r *RepositoryReaderService) GetRepos(userSettings configuration.UsersSettings, ctx context.Context) ([]cmdmodels.Repository, error) {
 	switch userSettings.Provider {
 	case supportedproviders.Azure:
-		return r.azureCmds.GetRepos(userSettings.OrganizationUrl, userSettings.Profile)
+		return r.azureCmds.GetRepos(fmt.Sprintf("%v", userSettings.OrganizationUrl), userSettings.Profile)
 
 	case supportedproviders.Github:
 		return r.githubRepoService.GetRepos(userSettings.Profile, ctx)

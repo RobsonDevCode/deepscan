@@ -3,6 +3,7 @@ package setupservice
 import (
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"os"
 	"strings"
 
@@ -12,24 +13,30 @@ import (
 
 const filePath = "configuration/user_setting.json"
 
-func CreateSetupFile(url string, profile string) error {
+func CreateSetupFile(orgUrl string, provider string, profile string) error {
 
 	if _, err := os.Stat(filePath); os.IsExist(err) {
 		return fmt.Errorf("user settings already exist")
 	}
 
-	var provider string
-	if strings.Contains(url, supportedproviders.GithubUrl) {
-		provider = supportedproviders.Github
-	}
-	if strings.Contains(url, supportedproviders.AzureUrl) {
-		provider = supportedproviders.Azure
-	}
+	var userSettings configuration.UsersSettings
+	if strings.ToLower(provider) == supportedproviders.Github {
+		userSettings = configuration.UsersSettings{
+			OrganizationUrl: supportedproviders.GithubUrl,
+			Profile:         profile,
+			Provider:        supportedproviders.Github,
+		}
+	} else if strings.ToLower(provider) == supportedproviders.Azure {
+		parsedUrl, err := url.Parse(orgUrl)
+		if err != nil {
+			return fmt.Errorf("\nurl seems to be in an incorrect format: %w", err)
+		}
 
-	userSettings := configuration.UsersSettings{
-		OrganizationUrl: url,
-		Profile:         profile,
-		Provider:        provider,
+		userSettings = configuration.UsersSettings{
+			OrganizationUrl: fmt.Sprintf("%v", *parsedUrl),
+			Profile:         profile,
+			Provider:        supportedproviders.Azure,
+		}
 	}
 
 	jsonData, err := json.Marshal(userSettings)
@@ -56,7 +63,7 @@ func GetUserSettings() (*configuration.UsersSettings, error) {
 		return nil, fmt.Errorf("error unmarsheling user settings %w", err)
 	}
 
-	if userSettings.OrganizationUrl == "" || userSettings.Profile == "" {
+	if userSettings.Profile == "" {
 		return nil, fmt.Errorf("error, validating set up please insure the set up command has been ran")
 	}
 
