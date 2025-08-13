@@ -6,7 +6,6 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
-	"strings"
 	"sync"
 
 	"github.com/RobsonDevCode/deepscan/internal/clients"
@@ -15,9 +14,8 @@ import (
 	scannerconstants "github.com/RobsonDevCode/deepscan/internal/scanner/constants"
 	ecosystemconstants "github.com/RobsonDevCode/deepscan/internal/scanner/constants/ecosystem"
 	riskscoreconstants "github.com/RobsonDevCode/deepscan/internal/scanner/constants/riskScore"
-	scannermapper "github.com/RobsonDevCode/deepscan/internal/scanner/mapping"
 	scannermodels "github.com/RobsonDevCode/deepscan/internal/scanner/models"
-	packagereaderservice "github.com/RobsonDevCode/deepscan/internal/services/packageReaderService"
+	projectreaderservice "github.com/RobsonDevCode/deepscan/internal/services/projectReaderService"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -31,11 +29,11 @@ type ScannerService interface {
 
 type Scanner struct {
 	client        clients.GithubClientService
-	packageReader packagereaderservice.PackageReaderService
+	packageReader projectreaderservice.PackageReaderService
 }
 
 func NewScanner(client clients.GithubClientService,
-	packageReader packagereaderservice.PackageReaderService) *Scanner {
+	packageReader projectreaderservice.PackageReaderService) *Scanner {
 	return &Scanner{
 		client:        client,
 		packageReader: packageReader,
@@ -174,34 +172,22 @@ func (s *Scanner) GetFilesToScan(root string, ctx context.Context) ([]scannermod
 			return fmt.Errorf("error walking dir: %w", err)
 		}
 
-		isCsProj := strings.HasSuffix(path, ".csproj")
-		isNpmProj := strings.HasSuffix(path, "package-lock.json")
-		if !dir.IsDir() && (isCsProj || isNpmProj) {
+		supported, projectType := s.packageReader.IsSupportedProject(path)
+		if !supported {
+			//skip dir
+			return nil
+		}
+
+		if !dir.IsDir() && supported {
 			g.Go(func() error {
 				select {
 				case <-ctx.Done():
 					return fmt.Errorf("task has been cancelled, %w", ctx.Err())
 
 				default:
-					var project scannermodels.Project
-
-					if isCsProj {
-						csProject, err := s.packageReader.ReadCsProject(&path, ctx)
-						if err != nil {
-							return fmt.Errorf("error reading C# project %w", err)
-						}
-
-						project = scannermapper.MapCsProjToProject(&csProject)
-					} else if isNpmProj {
-						dirToScan := filepath.Dir(path)
-						npmProject, err := s.packageReader.ReadFrontEndProject(&dirToScan, ctx)
-						if err != nil {
-							return fmt.Errorf("error reading Npm project  %w", err)
-						}
-
-						project = scannermapper.MapNpmResultToProject(npmProject)
-					} else {
-						return nil
+					project, err := s.packageReader.ReadProject(projectType, path, ctx)
+					if err != nil {
+						return err
 					}
 
 					mu.Lock()

@@ -11,7 +11,7 @@ import (
 	scanner "github.com/RobsonDevCode/deepscan/internal/scanner"
 	githubrepositoryservice "github.com/RobsonDevCode/deepscan/internal/services/githubRepositoryService"
 	gitubauthenticationservice "github.com/RobsonDevCode/deepscan/internal/services/gitubAuthenticationService"
-	packagereaderservice "github.com/RobsonDevCode/deepscan/internal/services/packageReaderService"
+	projectreaderservice "github.com/RobsonDevCode/deepscan/internal/services/projectReaderService"
 	repositoryreaderservice "github.com/RobsonDevCode/deepscan/internal/services/repositoryReaderService"
 	scanfileservice "github.com/RobsonDevCode/deepscan/internal/services/scanFileService"
 	scansshservice "github.com/RobsonDevCode/deepscan/internal/services/scanShhService"
@@ -35,7 +35,7 @@ func main() {
 		return
 	}
 
-	packageReader := packagereaderservice.NewPackageReader()
+	packageReader := projectreaderservice.NewPackageReader()
 	scanner := scanner.NewScanner(githubClient, packageReader)
 
 	githubAuthClient, err := githubauthenticationclient.NewGithubAuthenticationClient(config, &cacheIntance)

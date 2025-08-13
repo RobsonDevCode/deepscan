@@ -7,4 +7,5 @@ type Project struct {
 	PackagesAndVersion map[string]string
 	Framework          string
 	Frameworks         string
+	LangaugeVersion    string
 }

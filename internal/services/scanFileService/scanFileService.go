@@ -7,7 +7,7 @@ import (
 
 	"github.com/RobsonDevCode/deepscan/internal/clients/models"
 	scannerService "github.com/RobsonDevCode/deepscan/internal/scanner"
-	packagereaderservice "github.com/RobsonDevCode/deepscan/internal/services/packageReaderService"
+	projectreaderservice "github.com/RobsonDevCode/deepscan/internal/services/projectReaderService"
 	"github.com/fatih/color"
 )
 
@@ -17,10 +17,10 @@ type ScanFileService interface {
 
 type FileProcessor struct {
 	scanner       scannerService.ScannerService
-	packageReader packagereaderservice.PackageReaderService
+	packageReader projectreaderservice.PackageReaderService
 }
 
-func NewFileScannerService(scanner scannerService.ScannerService, packageReader packagereaderservice.PackageReaderService) *FileProcessor {
+func NewFileScannerService(scanner scannerService.ScannerService, packageReader projectreaderservice.PackageReaderService) *FileProcessor {
 	return &FileProcessor{
 		scanner:       scanner,
 		packageReader: packageReader,
